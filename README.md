@@ -3,6 +3,8 @@
 [![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
 [![Discord](https://img.shields.io/badge/Discord_Bot-5865F2?logo=discord&logoColor=white)](https://discord.com/developers/docs/intro)
 [![Python](https://img.shields.io/badge/Python-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Google Sheets](https://img.shields.io/badge/Google_Sheets-0F9D58?logo=google-sheets&logoColor=white)](https://www.google.com/sheets/about/)
+
 
 🌐 Languages:  
 [![Español](https://img.shields.io/badge/🇪🇸-Español-red)](#-español)  
