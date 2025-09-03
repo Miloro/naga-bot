@@ -9,7 +9,7 @@ import io
 intents = discord.Intents.default()
 intents.message_content = True
 
-# Google Sheets
+
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 creds = Credentials.from_service_account_file("credentials/credentials.json", scopes=SCOPES)
 client = gspread.authorize(creds)
@@ -17,10 +17,10 @@ SPREADSHEET_ID = config.id_excel
 spreadsheet = client.open_by_key(SPREADSHEET_ID)
 worksheet = spreadsheet.worksheet(config.hoja_excel)
 
-# Inicializar bot (¡ojo! sin prefijo, ya que usaremos slash commands)
-bot = commands.Bot(command_prefix="!", intents=intents)
 
-# --- Slash Commands ---
+bot = commands.Bot(command_prefix="/", intents=intents)
+
+
 @bot.tree.command(name="lider", description="Muestra qué equipo va primero en la tabla")
 async def lider(interaction: discord.Interaction):
     try:
@@ -77,10 +77,10 @@ async def podio(interaction: discord.Interaction):
     except Exception as e:
         await interaction.response.send_message(f"Ocurrió un error {e}")
 
-# Evento on_ready
+
 @bot.event
 async def on_ready():
-    await bot.tree.sync()  # Importante para que aparezcan en Discord
+    await bot.tree.sync()  
     print(f"Bot listo como {bot.user}")
 
 bot.run(config.TOKEN)
