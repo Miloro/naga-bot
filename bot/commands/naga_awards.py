@@ -1,27 +1,23 @@
 import discord
+from discord import app_commands
 from discord.ext import commands
 import gspread
 from google.oauth2.service_account import Credentials
-from credentials import config
 from PIL import Image
 import io
+from dotenv import load_dotenv
+import os
 
-intents = discord.Intents.default()
-intents.message_content = True
-
+load_dotenv()
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 creds = Credentials.from_service_account_file("credentials/credentials.json", scopes=SCOPES)
 client = gspread.authorize(creds)
-SPREADSHEET_ID = config.id_excel
+SPREADSHEET_ID = os.getenv("ID_EXCEL")
 spreadsheet = client.open_by_key(SPREADSHEET_ID)
-worksheet = spreadsheet.worksheet(config.hoja_excel)
+worksheet = spreadsheet.worksheet(os.getenv("HOJA_EXCEL"))
 
 
-bot = commands.Bot(command_prefix="/", intents=intents)
-
-
-@bot.tree.command(name="lider", description="Muestra qué equipo va primero en la tabla")
 async def lider(interaction: discord.Interaction):
     try:
         values = worksheet.get_values('E2:E5')
@@ -37,7 +33,7 @@ async def lider(interaction: discord.Interaction):
     except Exception as e:
         await interaction.response.send_message(f"Ocurrió un error: {e}")
 
-@bot.tree.command(name="podio", description="Muestra el podio de las casas")
+
 async def podio(interaction: discord.Interaction):
     try:
         values = worksheet.get_values('E2:E5')
@@ -78,9 +74,6 @@ async def podio(interaction: discord.Interaction):
         await interaction.response.send_message(f"Ocurrió un error {e}")
 
 
-@bot.event
-async def on_ready():
-    await bot.tree.sync()  
-    print(f"Bot listo como {bot.user}")
-
-bot.run(config.TOKEN)
+def setup(bot):
+    bot.tree.add_command(app_commands.Command(name="lider", description="Muestra qué equipo va primero en la tabla", callback=lider))
+    bot.tree.add_command(app_commands.Command(name="podio", description="Muestra el podio de las casas", callback=podio))
