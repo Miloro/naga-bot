@@ -2,201 +2,209 @@ import discord
 from discord import app_commands
 import asyncio
 
-# Diccionario global donde guardamos los desafíos activos
-# La clave será el channel.id y el valor un diccionario con:
-# retador, jugada, monto, bolsas, estado
+# Diccionario global para manejar desafíos por canal
 desafios = {}
 
+class DueloAMuerte:
+    def __init__(self, interaccion_retador: discord.Interaction, monto: int):
+        self.interaccion_retador = interaccion_retador
+        self.interaccion_desafiado = None
+        self.monto_apostado = monto
+        self.bolsa_jugador_1 = 0
+        self.bolsa_jugador_2 = 0
+        self.jugada1 = None
+        self.jugada2 = None
+        self.channel = interaccion_retador.channel
 
-# ==== Vista de botones para el retador ====
-class EleccionRetador(discord.ui.View):
-    def __init__(self, interaction: discord.Interaction, desafios: dict, monto: str = "0", continuar: bool = False):
-        super().__init__(timeout=60)  # 1 minuto de tiempo para elegir
-        self.interaction = interaction
-        self.desafios = desafios
-        self.monto = monto
-        self.continuar = continuar
+    async def iniciar_desafio(self):
+        # Mensaje inicial
+        await self.interaccion_retador.response.send_message(
+            "Espera a que alguien responda a tu desafío...", ephemeral=True
+        )
 
-    async def guardar_jugada(self, interaction: discord.Interaction, jugada: str):
-        channel_id = self.interaction.channel.id
+        view = AceptarDuelo(self)
+        await self.channel.send(
+            f"{self.interaccion_retador.user.mention} inició un duelo a muerte ({self.monto_apostado}).\n"
+            "¿Quién acepta el desafío?",
+            view=view
+        )
 
-        if not self.continuar:
-            # Crear desafío nuevo
-            self.desafios[channel_id] = {
-                "retador": self.interaction.user,
-                "jugada": jugada,
-                "monto": self.monto,
-                "bolsa_jugador_1": 0,
-                "bolsa_jugador_2": 0,
-                "activo": True
-            }
+        # Tiempo límite de 5 minutos
+        await asyncio.sleep(300)
+        if self.channel.id in desafios and desafios[self.channel.id]["activo"]:
+            desafios[self.channel.id]["activo"] = False
+            await self.channel.send("El desafío ha expirado, nadie respondió a tiempo.")
 
-            # Confirmación oculta
-            await interaction.response.send_message(f"✅ Jugada **{jugada}** guardada.", ephemeral=True)
+    async def iniciar_ronda(self):
+        self.jugada1 = None
+        self.jugada2 = None
 
-            # Publicamos el desafío en el canal
-            view = EleccionOponente(self.interaction, self.desafios)
-            await self.interaction.followup.send(
-                f"{self.interaction.user.mention} inició un duelo a muerte con cuchillos ({self.monto}).\n"
-                f"¿Quién acepta el desafío? Elige tu jugada:",
-                view=view
-            )
-        else:
-            # Continuación: solo actualizamos jugada
-            self.desafios[channel_id]["jugada"] = jugada
-            await interaction.response.send_message(f"✅ Elegiste **{jugada}**", ephemeral=True)
+        # Enviar opciones privadas a cada jugador
+        view1 = EleccionJugador(self, jugador=1)
+        view2 = EleccionJugador(self, jugador=2)
 
-        self.stop()
+        await self.interaccion_retador.followup.send(
+            "Elige tu jugada:",
+            view=view1,
+            ephemeral=True
+        )
+        await self.interaccion_desafiado.followup.send(
+            "Elige tu jugada:",
+            view=view2,
+            ephemeral=True
+        )
 
-    @discord.ui.button(label="juntar faca", style=discord.ButtonStyle.primary)
-    async def piedra(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.guardar_jugada(interaction, "mas_uno")
+        # Esperar hasta que ambos jueguen o expire tiempo
+        for _ in range(30):
+            if self.jugada1 and self.jugada2:
+                break
+            await asyncio.sleep(1)
 
-    @discord.ui.button(label="defender", style=discord.ButtonStyle.success)
-    async def papel(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.guardar_jugada(interaction, "defender")
-
-    @discord.ui.button(label="atacar", style=discord.ButtonStyle.danger)
-    async def tijera(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.guardar_jugada(interaction, "atacar")
-
-
-# ==== Vista de botones para el oponente ====
-class EleccionOponente(discord.ui.View):
-    def __init__(self, interaction: discord.Interaction, desafios: dict):
-        super().__init__(timeout=600)
-        self.interaction = interaction
-        self.desafios = desafios
-
-    async def resolver(self, interaction: discord.Interaction, jugada_oponente: str):
-        channel_id = self.interaction.channel.id
-        desafio = self.desafios.get(channel_id)
-
-        if not desafio or not desafio["activo"]:
-            await interaction.response.send_message("❌ El desafío ya no está activo.", ephemeral=True)
+        if not self.jugada1 or not self.jugada2:
+            await self.channel.send("No todos eligieron a tiempo. El duelo termina.")
+            desafios[self.channel.id]["activo"] = False
             return
 
-        retador = desafio["retador"]
-        jugada_retador = desafio["jugada"]
-
-        # Resolver resultado y actualizar bolsas
-        resultado = self.determinar_ganador(channel_id, jugada_retador, jugada_oponente)
-
-        # Mostrar resultado en el canal
-        if resultado in ["gana1", "gana2", "empate"]:
-            desafio["activo"] = False
-            await interaction.response.send_message(f"🏆 Resultado: {resultado}")
-            self.stop()
+        # Determinar ganador o continuar
+        resultado = self.determinar_ganador(self.jugada1, self.jugada2)
+        if resultado == "empate":
+            await self.channel.send("Ambos dispararon y se mataron, ¡empate!")
+            desafios[self.channel.id]["activo"] = False
+        elif resultado == "gana1":
+            await self.channel.send(f"🏆 {self.interaccion_retador.user.mention} gana el duelo!")
+            desafios[self.channel.id]["activo"] = False
+        elif resultado == "gana2":
+            await self.channel.send(f"{self.interaccion_desafiado.user.mention} gana el duelo!")
+            desafios[self.channel.id]["activo"] = False
         else:
-            # Mostrar estado de bolsas
-            b1 = desafio["bolsa_jugador_1"]
-            b2 = desafio["bolsa_jugador_2"]
-            await interaction.response.send_message(
-                f"{resultado}\n"
-                f"📦 Bolsas → Jugador 1: {b1} | Jugador 2: {b2}\n"
-                f"{retador.mention}, elige tu próxima jugada:"
-            )
+            await self.channel.send("La batalla continúa...")
+            await self.iniciar_ronda()
 
-            # Retador elige otra vez (ephemeral)
-            view_retador = EleccionRetador(self.interaction, self.desafios, desafio["monto"], continuar=True)
-            await interaction.followup.send("✋ Elige tu jugada:", view=view_retador, ephemeral=True)
+    def registrar_jugada(self, jugador: int, jugada: str):
+        if jugador == 1:
+            self.jugada1 = jugada
+        else:
+            self.jugada2 = jugada
 
-            # Oponente recibe botones públicos de nuevo
-            view_oponente = EleccionOponente(self.interaction, self.desafios)
-            await interaction.followup.send(
-                "👤 Turno del oponente, elige tu jugada:",
-                view=view_oponente,
-                ephemeral=True
-            )
+    def determinar_ganador(self, jugada1: str, jugada2: str):
+        b1 = self.bolsa_jugador_1
+        b2 = self.bolsa_jugador_2
 
-    def determinar_ganador(self, channel_id: int, jugada1: str, jugada2: str):
-        desafio = self.desafios[channel_id]
-        b1 = desafio["bolsa_jugador_1"]
-        b2 = desafio["bolsa_jugador_2"]
-
-        # Reglas con modificaciones de bolsas
-        if jugada1 == "atacar" and jugada2 == "atacar":
+        def atacar_vs_atacar():
             if b1 > 0 and b2 > 0:
-                desafio["bolsa_jugador_1"] -= 1
-                desafio["bolsa_jugador_2"] -= 1
+                self.bolsa_jugador_1 -= 1
+                self.bolsa_jugador_2 -= 1
                 return "empate"
             elif b1 == 0 and b2 > 0:
                 return "gana2"
             elif b1 > 0 and b2 == 0:
                 return "gana1"
             else:
-                return "nadie puede atacar"
+                return "seguir"
 
-        elif jugada1 == "atacar" and jugada2 == "defender":
+        def atacar_vs_defender():
             if b1 > 0:
-                desafio["bolsa_jugador_1"] -= 1
-                return "jugador 1 pierde un cuchillo"
-            else:
-                return "jugador 1 no hace nada"
+                self.bolsa_jugador_1 -= 1
+            return "seguir"
 
-        elif jugada1 == "atacar" and jugada2 == "mas_uno":
+        def atacar_vs_recargar():
             if b1 > 0:
+                self.bolsa_jugador_1 -= 1
                 return "gana1"
             else:
-                desafio["bolsa_jugador_2"] += 1
-                return "jugador 1 no hace nada y jugador 2 gana un cuchillo"
+                self.bolsa_jugador_2 += 1
+                return "seguir"
 
-        elif jugada1 == "defender" and jugada2 == "atacar":
-            if b2 > 0:
-                desafio["bolsa_jugador_2"] -= 1
-                return "jugador 2 pierde un cuchillo"
-            else:
-                return "jugador 2 no hace nada"
-
-        elif jugada1 == "defender" and jugada2 == "defender":
-            return "ambos se defienden"
-
-        elif jugada1 == "defender" and jugada2 == "mas_uno":
-            desafio["bolsa_jugador_2"] += 1
-            return "jugador 2 gana un cuchillo"
-
-        elif jugada1 == "mas_uno" and jugada2 == "atacar":
+        def recargar_vs_atacar():
             if b2 > 0:
                 return "gana2"
             else:
-                desafio["bolsa_jugador_1"] += 1
-                return "jugador 2 no hace nada y jugador 1 gana un cuchillo"
+                self.bolsa_jugador_1 += 1
+                return "seguir"
 
-        elif jugada1 == "mas_uno" and jugada2 == "defender":
-            desafio["bolsa_jugador_1"] += 1
-            return "jugador 1 gana un cuchillo"
+        def recargar_vs_recargar():
+            self.bolsa_jugador_1 += 1
+            self.bolsa_jugador_2 += 1
+            return "seguir"
 
-        elif jugada1 == "mas_uno" and jugada2 == "mas_uno":
-            desafio["bolsa_jugador_1"] += 1
-            desafio["bolsa_jugador_2"] += 1
-            return "ambos ganan un cuchillo"
+        def recargar_vs_defender():
+            self.bolsa_jugador_1 += 1
+            return "seguir"
 
-        return "jugada inválida"
+        def defender_vs_recargar():
+            self.bolsa_jugador_2 += 1
+            return "seguir"
 
-    @discord.ui.button(label="juntar faca", style=discord.ButtonStyle.primary)
-    async def piedra(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.resolver(interaction, "mas_uno")
+        reglas = {
+            ("atacar", "atacar"): atacar_vs_atacar,
+            ("atacar", "defender"): atacar_vs_defender,
+            ("atacar", "recargar"): atacar_vs_recargar,
+            ("defender", "atacar"): atacar_vs_defender,
+            ("defender", "defender"): lambda: "seguir",
+            ("defender", "recargar"): defender_vs_recargar,
+            ("recargar", "atacar"): recargar_vs_atacar,
+            ("recargar", "defender"): recargar_vs_defender,
+            ("recargar", "recargar"): recargar_vs_recargar,
+        }
 
-    @discord.ui.button(label="defender", style=discord.ButtonStyle.success)
-    async def papel(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.resolver(interaction, "defender")
-
-    @discord.ui.button(label="atacar", style=discord.ButtonStyle.danger)
-    async def tijera(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.resolver(interaction, "atacar")
-
-
-# ==== Comando desafío ====
-async def desafio(interaction: discord.Interaction, monto: str):
-    view = EleccionRetador(interaction, desafios, monto)
-    await interaction.response.send_message("✋ Elige tu jugada:", view=view, ephemeral=True)
-
-    await asyncio.sleep(600)
-    if desafios.get(interaction.channel.id, {}).get("activo", False):
-        desafios[interaction.channel.id]["activo"] = False
-        await interaction.channel.send("⏰ El desafío ha expirado, nadie respondió a tiempo.")
+        return reglas.get((jugada1, jugada2), lambda: "seguir")()
 
 
-# ==== Registro de comandos ====
+class AceptarDuelo(discord.ui.View):
+    def __init__(self, duelo: DueloAMuerte):
+        super().__init__(timeout=300)
+        self.duelo = duelo
+
+    @discord.ui.button(label="Aceptar", style=discord.ButtonStyle.success)
+    async def aceptar(self, interaction: discord.Interaction, button: discord.ui.Button):
+        #if interaction.user == self.duelo.interaccion_retador.user:
+        #    await interaction.response.send_message("No puedes aceptar tu propio duelo.", ephemeral=True)
+        #    return
+
+        self.duelo.interaccion_desafiado = interaction
+        desafios[self.duelo.channel.id] = {"activo": True, "duelo": self.duelo}
+
+        await interaction.response.send_message("Has aceptado el duelo!", ephemeral=True)
+        await self.duelo.channel.send(
+            f"🔥 {interaction.user.mention} ha aceptado el duelo contra {self.duelo.interaccion_retador.user.mention}!"
+        )
+
+        self.stop()
+        await self.duelo.iniciar_ronda()
+
+
+class EleccionJugador(discord.ui.View):
+    def __init__(self, duelo: DueloAMuerte, jugador: int):
+        super().__init__(timeout=30)
+        self.duelo = duelo
+        self.jugador = jugador
+
+    async def registrar(self, interaction: discord.Interaction, jugada: str):
+        self.duelo.registrar_jugada(self.jugador, jugada)
+        await interaction.response.send_message(f"Elegiste **{jugada}**", ephemeral=True)
+        self.stop()
+
+    @discord.ui.button(label="Recargar", style=discord.ButtonStyle.primary)
+    async def recargar(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.registrar(interaction, "recargar")
+
+    @discord.ui.button(label="Defender", style=discord.ButtonStyle.secondary)
+    async def defender(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.registrar(interaction, "defender")
+
+    @discord.ui.button(label="Atacar", style=discord.ButtonStyle.danger)
+    async def atacar(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.registrar(interaction, "atacar")
+
+
+async def desafio(interaction: discord.Interaction, monto: int):
+    duelo = DueloAMuerte(interaction, monto)
+    await duelo.iniciar_desafio()
+
+
 def setup(bot):
-    bot.tree.add_command(app_commands.Command(name="desafio", description="Inicia un desafío", callback=desafio))
+    bot.tree.add_command(app_commands.Command(
+        name="desafio",
+        description="Inicia un desafío a muerte",
+        callback=desafio
+    ))
