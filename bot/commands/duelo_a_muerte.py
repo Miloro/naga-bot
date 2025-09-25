@@ -188,7 +188,6 @@ class DueloAMuerte:
         elif resultado == "gana1":
             imagen_jugada = armar_jugada(armar_victoria(self.avatar_retador), 500 ,armar_muerto(self.avaatar_desafiado), 670)
             await self.renderizar_imagen(imagen_jugada)
-            #await self.channel.send(f"🏆 {self.interaccion_retador.user.mention} gana el duelo!")
             desafios[self.channel.id]["activo"] = False
         elif resultado == "gana2":
             imagen_jugada = armar_jugada(armar_muerto(self.avatar_retador), 670 ,armar_victoria(self.avaatar_desafiado), 500)
@@ -209,7 +208,6 @@ class DueloAMuerte:
     def determinar_ganador(self, jugada1: str, jugada2: str):
         b1 = self.bolsa_jugador_1
         b2 = self.bolsa_jugador_2
-
         def atacar_vs_atacar():
             if b1 > 0 and b2 > 0:
                 self.bolsa_jugador_1 -= 1
@@ -227,6 +225,8 @@ class DueloAMuerte:
             if b1 > 0:
                 self.imagen_jugada_intermedia = armar_jugada(armar_ataque(self.avatar_retador), 500, armar_defensa(self.avaatar_desafiado), 500)
                 self.bolsa_jugador_1 -= 1
+            else:
+                self.imagen_jugada_intermedia = armar_jugada(armar_ataque(self.avatar_retador), 500, armar_defensa(self.avaatar_desafiado), 500)
             return ""
 
         def atacar_vs_recargar():
@@ -260,14 +260,26 @@ class DueloAMuerte:
         def defender_vs_recargar():
             self.imagen_jugada_intermedia = armar_jugada(armar_defensa(self.avatar_retador), 500,armar_juntar_cuchillo(self.avaatar_desafiado), 500)
             self.bolsa_jugador_2 += 1
-            return "seguir"
+            return ""
+
+        def defender_vs_defender():
+            self.imagen_jugada_intermedia = armar_jugada(armar_defensa(self.avatar_retador),500, armar_defensa(self.avaatar_desafiado),500)
+            return ""
+
+        def defender_vs_atacar():
+            if b2 > 0:
+                self.imagen_jugada_intermedia = armar_jugada(armar_defensa(self.avatar_retador),500, armar_ataque(self.avaatar_desafiado),500)
+                self.bolsa_jugador_2 -= 1
+            else:
+                self.imagen_jugada_intermedia = armar_jugada(armar_defensa(self.avatar_retador),500, armar_ataque(self.avaatar_desafiado),500)
+            return ""
 
         reglas = {
             ("atacar", "atacar"): atacar_vs_atacar,
             ("atacar", "defender"): atacar_vs_defender,
             ("atacar", "recargar"): atacar_vs_recargar,
-            ("defender", "atacar"): atacar_vs_defender,
-            ("defender", "defender"): lambda: "seguir",
+            ("defender", "atacar"): defender_vs_atacar,
+            ("defender", "defender"): defender_vs_defender,
             ("defender", "recargar"): defender_vs_recargar,
             ("recargar", "atacar"): recargar_vs_atacar,
             ("recargar", "defender"): recargar_vs_defender,
