@@ -4,9 +4,67 @@ import asyncio
 from PIL import Image
 import io
 import aiohttp
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 from PIL import ImageOps
+import os
+RUTA_FUENTE = os.path.join(os.path.dirname(__file__), "..", "fuentes", "DraculitoS_.ttf")
 
+
+####################################################
+#██████╗░██╗░█████╗░░██████╗        ██████╗░███████╗██████╗░██████╗░░█████╗░███╗░░██╗███████╗        ░█████╗░██╗░░░░░
+#██╔══██╗██║██╔══██╗██╔════╝        ██╔══██╗██╔════╝██╔══██╗██╔══██╗██╔══██╗████╗░██║██╔════╝        ██╔══██╗██║░░░░░
+#██║░░██║██║██║░░██║╚█████╗░        ██████╔╝█████╗░░██████╔╝██║░░██║██║░░██║██╔██╗██║█████╗░░        ███████║██║░░░░░
+#██║░░██║██║██║░░██║░╚═══██╗        ██╔═══╝░██╔══╝░░██╔══██╗██║░░██║██║░░██║██║╚████║██╔══╝░░        ██╔══██║██║░░░░░
+#██████╔╝██║╚█████╔╝██████╔╝        ██║░░░░░███████╗██║░░██║██████╔╝╚█████╔╝██║░╚███║███████╗        ██║░░██║███████╗
+#╚═════╝░╚═╝░╚════╝░╚═════╝░        ╚═╝░░░░░╚══════╝╚═╝░░╚═╝╚═════╝░░╚════╝░╚═╝░░╚══╝╚══════╝        ╚═╝░░╚═╝╚══════╝
+#
+#░██████╗░██╗░░░██╗███████╗        ██╗░░░░░███████╗░█████╗░        ███████╗░██████╗████████╗███████╗
+#██╔═══██╗██║░░░██║██╔════╝        ██║░░░░░██╔════╝██╔══██╗        ██╔════╝██╔════╝╚══██╔══╝██╔════╝
+#██║██╗██║██║░░░██║█████╗░░        ██║░░░░░█████╗░░███████║        █████╗░░╚█████╗░░░░██║░░░█████╗░░
+#╚██████╔╝██║░░░██║██╔══╝░░        ██║░░░░░██╔══╝░░██╔══██║        ██╔══╝░░░╚═══██╗░░░██║░░░██╔══╝░░
+#░╚═██╔═╝░╚██████╔╝███████╗        ███████╗███████╗██║░░██║        ███████╗██████╔╝░░░██║░░░███████╗
+#░░░╚═╝░░░░╚═════╝░╚══════╝        ╚══════╝╚══════╝╚═╝░░╚═╝        ╚══════╝╚═════╝░░░░╚═╝░░░╚══════╝
+
+#░█████╗░░█████╗░██████╗░██╗░██████╗░░█████╗░
+#██╔══██╗██╔══██╗██╔══██╗██║██╔════╝░██╔══██╗
+#██║░░╚═╝██║░░██║██║░░██║██║██║░░██╗░██║░░██║
+#██║░░██╗██║░░██║██║░░██║██║██║░░╚██╗██║░░██║
+#╚█████╔╝╚█████╔╝██████╔╝██║╚██████╔╝╚█████╔╝
+####################################################
+
+async def poner_texto_centro_imagen(texto,imagen):
+    draw = ImageDraw.Draw(imagen)
+    tamano_fuente = 300
+    try:
+        fuente = ImageFont.truetype(RUTA_FUENTE, tamano_fuente)
+    except:
+        fuente = ImageFont.load_default()
+
+    margen = 40
+    while True:
+        bbox = draw.textbbox((0, 0), texto, font=fuente, stroke_width=10)
+        texto_ancho = bbox[2] - bbox[0]
+
+        if texto_ancho + 2 * margen <= imagen.width or tamano_fuente <= 5:
+            break
+
+        tamano_fuente -= 5
+        try:
+            fuente = ImageFont.truetype(RUTA_FUENTE, tamano_fuente)
+        except:
+            fuente = ImageFont.load_default()
+
+
+    x_pos = (imagen.width - texto_ancho) / 2
+    texto_alto = bbox[3] - bbox[1]
+    y_pos = ((imagen.height - texto_alto) / 2) - 90
+    if texto == "EMPATE":
+        color = "#964B00"
+    else:
+        color = "#FF0000"
+
+    draw.text((x_pos, y_pos), texto, font=fuente, fill= color, stroke_width=10, stroke_fill="black")
+    return draw
 
 async def procesar_imagen(imagen, controlador_juego):
     with io.BytesIO() as image_binary:
@@ -17,9 +75,6 @@ async def procesar_imagen(imagen, controlador_juego):
         )
 
 def armar_jugada(player_1: Image.Image, y ,player_2: Image.Image, y2) -> Image.Image:
-    #tamaño de avatar 100,100
-    # 500 estando de pie
-    # 670 estando muerto
     fondo = Image.open("images/duelos/arena.png").convert("RGBA")
     player_2 = ImageOps.mirror(player_2)
     fondo.paste(player_1, (100, y), player_1 )
@@ -27,14 +82,12 @@ def armar_jugada(player_1: Image.Image, y ,player_2: Image.Image, y2) -> Image.I
     return fondo
 
 def armar_muerto(avatar: Image.Image) -> Image.Image:
-    #tamaño de avatar 100,100
     circulo_avatar = make_circle_avatar(avatar, size=(100, 100))
     fondo = Image.open("images/duelos/derrota.png").convert("RGBA")
     fondo.paste(circulo_avatar, (310, 145), circulo_avatar )
     return fondo
 
 def armar_defensa(avatar: Image.Image) -> Image.Image:
-    #tamaño de avatar
     circulo_avatar = make_circle_avatar(avatar, size=(100, 100))
     fondo = Image.open("images/duelos/bloquear.png").convert("RGBA")
     fondo.paste(circulo_avatar, (50, 20), circulo_avatar )
@@ -61,7 +114,6 @@ def armar_juntar_cuchillo(avatar: Image.Image) -> Image.Image:
 def make_circle_avatar(avatar: Image.Image, size=(128, 128)) -> Image.Image:
     avatar = avatar.resize(size).convert("RGBA")
 
-    # Máscara circular
     mask = Image.new("L", size, 0)
     draw = ImageDraw.Draw(mask)
     draw.ellipse((0, 0, size[0], size[1]), fill=255)
@@ -71,7 +123,6 @@ def make_circle_avatar(avatar: Image.Image, size=(128, 128)) -> Image.Image:
 
     return circular_avatar
 
-# Diccionario global para manejar desafíos por canal
 desafios = {}
 
 class DueloAMuerte:
@@ -91,7 +142,6 @@ class DueloAMuerte:
 
 
     async def iniciar_desafio(self):
-        # Mensaje inicial
         await self.interaccion_retador.response.send_message(
             "Espera a que alguien responda a tu desafío...", ephemeral=True
         )
@@ -106,11 +156,9 @@ class DueloAMuerte:
                 else:
                     raise Exception(f"No se pudo descargar el avatar: {resp.status}")
 
-        # Recortar en círculo
         circulo_retador = make_circle_avatar(self.avatar_retador, size=(500, 500))
 
 
-        # Pegar avatar en la plantilla
         imagen_desafiar.paste(circulo_retador, (650, 255), circulo_retador )
         await self.renderizar_imagen(imagen_desafiar)
         view = AceptarDuelo(self)
@@ -140,7 +188,6 @@ class DueloAMuerte:
         self.jugada2 = None
 
 
-        # Enviar opciones privadas a cada jugador
         view1 = EleccionJugador(self, jugador=1)
         view2 = EleccionJugador(self, jugador=2)
 
@@ -149,15 +196,11 @@ class DueloAMuerte:
             view=view1,
             ephemeral=True
         )
-        print(self.jugada1)
-        print(self.bolsa_jugador_1)
         await self.interaccion_desafiado.followup.send(
             "Elige tu jugada:",
             view=view2,
             ephemeral=True
         )
-        print(self.jugada2)
-        print(self.bolsa_jugador_2)
         avatar_url2 = self.interaccion_desafiado.user.avatar.url
         async with aiohttp.ClientSession() as session:
             async with session.get(str(avatar_url2)) as resp:
@@ -167,8 +210,6 @@ class DueloAMuerte:
                 else:
                     raise Exception(f"No se pudo descargar el avatar: {resp.status}")
 
-
-        # Esperar hasta que ambos jueguen o expire tiempo
         for _ in range(30):
             if self.jugada1 and self.jugada2:
                 break
@@ -179,21 +220,48 @@ class DueloAMuerte:
             desafios[self.channel.id]["activo"] = False
             return
 
-        # Determinar ganador o continuar
         resultado = self.determinar_ganador(self.jugada1, self.jugada2)
         if resultado == "empate":
             imagen_jugada = armar_jugada(armar_muerto(self.avatar_retador), 670 ,armar_muerto(self.avaatar_desafiado), 670)
+            await poner_texto_centro_imagen("EMPATE", imagen_jugada)
             await self.renderizar_imagen(imagen_jugada)
             desafios[self.channel.id]["activo"] = False
         elif resultado == "gana1":
             imagen_jugada = armar_jugada(armar_victoria(self.avatar_retador), 500 ,armar_muerto(self.avaatar_desafiado), 670)
+            await poner_texto_centro_imagen(f"{self.interaccion_retador.user.display_name} GUINS", imagen_jugada)
             await self.renderizar_imagen(imagen_jugada)
             desafios[self.channel.id]["activo"] = False
         elif resultado == "gana2":
             imagen_jugada = armar_jugada(armar_muerto(self.avatar_retador), 670 ,armar_victoria(self.avaatar_desafiado), 500)
+            await poner_texto_centro_imagen(f"{self.interaccion_desafiado.user.display_name} GUINS", imagen_jugada)
             await self.renderizar_imagen(imagen_jugada)
             desafios[self.channel.id]["activo"] = False
         else:
+            try:
+                fuente = ImageFont.truetype(RUTA_FUENTE, 100)
+            except:
+                fuente = ImageFont.load_default()
+
+            b1 = f"{self.interaccion_retador.user.display_name} X{self.bolsa_jugador_1}"
+            b2 = f"{self.interaccion_desafiado.user.display_name} X{self.bolsa_jugador_2}"
+
+            draw = ImageDraw.Draw(self.imagen_jugada_intermedia)
+
+            draw.text((15, 20), b1, font=fuente, fill="yellow", stroke_width=5, stroke_fill="black")
+
+
+            bbox = draw.textbbox((0, 0), b2, font=fuente, stroke_width=3)
+            texto_ancho = bbox[2] - bbox[0]
+
+
+            img_ancho = self.imagen_jugada_intermedia.width
+
+
+            x_pos = img_ancho - texto_ancho - 10
+            y_pos = 10
+
+            draw.text((x_pos, y_pos), b2, font=fuente, fill="yellow", stroke_width=5, stroke_fill="black")
+
             await self.renderizar_imagen(self.imagen_jugada_intermedia)
             if (resultado != ""):
                 await self.channel.send(resultado)
