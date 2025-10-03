@@ -40,8 +40,8 @@ class DueloAMuerte:
                 else:
                     raise Exception(f"No se pudo descargar el avatar: {resp.status}")
 
-        circulo_retador = make_circle_avatar(self.avatar_jugador_1, size=(500, 500))
-        imagen_desafiar.paste(circulo_retador, (650, 255), circulo_retador )
+        circulo_jugador_1 = make_circle_avatar(self.avatar_jugador_1, size=(500, 500))
+        imagen_desafiar.paste(circulo_jugador_1, (650, 255), circulo_jugador_1 )
         await self.renderizar_imagen(imagen_desafiar)
 
         view = AceptarDuelo(self)
@@ -187,7 +187,7 @@ class DueloAMuerte:
             else:
                 self.imagen_jugada_intermedia = armar_jugada(armar_ataque(self.avatar_jugador_1), 500, armar_juntar_cuchillo(self.avatar_jugador_2), 500)
                 self.bolsa_jugador_2 += 1
-                return "el tonto del desafiador tiro cuchillo sin tener uno"
+                return f"el tonto de {self.interaccion_jugador_1.user.mention}  tiro cuchillo sin tener uno"
 
         def agarrrar_un_cuchillo_vs_atacar():
             if b2 > 0:
@@ -195,7 +195,7 @@ class DueloAMuerte:
             else:
                 self.imagen_jugada_intermedia = armar_jugada(armar_juntar_cuchillo(self.avatar_jugador_1), 500,armar_ataque(self.avatar_jugador_2), 500)
                 self.bolsa_jugador_1 += 1
-                return "el tonto del desafiado tiro cuchillo sin tener uno"
+                return f"el tonto de {self.interaccion_jugador_2.user.mention}  tiro cuchillo sin tener uno"
 
         def agarrrar_un_cuchillo_vs_agarrrar_un_cuchillo():
             self.imagen_jugada_intermedia = armar_jugada(armar_juntar_cuchillo(self.avatar_jugador_1), 500,armar_juntar_cuchillo(self.avatar_jugador_2), 500)

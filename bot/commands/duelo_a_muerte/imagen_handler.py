@@ -2,7 +2,11 @@ from PIL import Image, ImageDraw, ImageFont
 from PIL import ImageOps
 import os
 
-RUTA_FUENTE = os.path.join(os.path.dirname(__file__), "..", "fuentes", "DraculitoS_.ttf")
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+RUTA_FUENTE = os.path.join(BASE_DIR, "fuentes", "DraculitoS_.ttf")
+
+if not os.path.exists(RUTA_FUENTE):
+    print("⚠️ No se encontró la fuente en:", RUTA_FUENTE)
 
 async def poner_texto_centro_imagen(texto,color,imagen):
     draw = ImageDraw.Draw(imagen)
