@@ -23,13 +23,10 @@ class DueloAMuerte:
         self.imagen_jugada_intermedia = None
 
 
-    async def iniciar_desafio(self):
-        # Se manda un mensaje privado al que desafia
+    async def iniciar_duelo(self):
         await self.interaccion_jugador_1.response.send_message(
             "Arrancaste una pelea a muerte espera a ver quien tiene los coquitos para aceptar tu desafio...", ephemeral=True
         )
-        # Se crea una imagen con la imagen de perfil de la persona que desafia
-        # si la persona que desafia no tiene foto de perfil explota
         imagen_desafiar = Image.open("images/duelos/desafio.png").convert("RGBA")
         avatar_url = self.interaccion_jugador_1.user.avatar.url
         async with aiohttp.ClientSession() as session:
@@ -52,7 +49,6 @@ class DueloAMuerte:
             view=view
         )
 
-        # Tiempo límite de 5 minutos
         await asyncio.sleep(300)
         if self.channel.id in desafios and desafios[self.channel.id]["activo"]:
             desafios[self.channel.id]["activo"] = False
@@ -239,7 +235,6 @@ class DueloAMuerte:
 
         return reglas.get((jugada1, jugada2), lambda: "seguir")()
 
-# arranco una vista de discord en resumen tiene un timer y una ui button  si se apreta aceptar
 class AceptarDuelo(discord.ui.View):
     def __init__(self, duelo: DueloAMuerte):
         super().__init__(timeout=300)
@@ -248,9 +243,9 @@ class AceptarDuelo(discord.ui.View):
 
     @discord.ui.button(label="Aceptar", style=discord.ButtonStyle.success)
     async def aceptar(self, interaction: discord.Interaction, button: discord.ui.Button):
-        #if interaction.user == self.duelo.interaccion_jugador_1.user:
-        #    await interaction.response.send_message("No puedes aceptar tu propio duelo.", ephemeral=True)
-        #    return
+        if interaction.user == self.duelo.interaccion_jugador_1.user:
+            await interaction.response.send_message("No puedes aceptar tu propio duelo.", ephemeral=True)
+            return
 
         self.duelo.interaccion_jugador_2 = interaction
         desafios[self.duelo.channel.id] = {"activo": True, "duelo": self.duelo}
@@ -295,14 +290,14 @@ class EleccionJugador(discord.ui.View):
         await self.registrar(interaction, "atacar")
 
 
-async def desafio(interaction: discord.Interaction, monto: int):
+async def duelo(interaction: discord.Interaction, monto: int):
     duelo = DueloAMuerte(interaction, monto)
-    await duelo.iniciar_desafio()
+    await duelo.iniciar_duelo()
 
 
 def setup(bot):
     bot.tree.add_command(app_commands.Command(
-        name="desafio",
-        description="Inicia un desafío a muerte",
-        callback=desafio
+        name="duelo",
+        description="Inicia un duelo a muerte",
+        callback=duelo
     ))

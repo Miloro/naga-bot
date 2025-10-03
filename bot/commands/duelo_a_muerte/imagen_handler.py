@@ -5,9 +5,6 @@ import os
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 RUTA_FUENTE = os.path.join(BASE_DIR, "fuentes", "DraculitoS_.ttf")
 
-if not os.path.exists(RUTA_FUENTE):
-    print("⚠️ No se encontró la fuente en:", RUTA_FUENTE)
-
 async def poner_texto_centro_imagen(texto,color,imagen):
     draw = ImageDraw.Draw(imagen)
     tamano_fuente = 300
