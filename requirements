@@ -1,6 +1,8 @@
-discord
+discord.py[voice]
 requests
 gspread
 google-auth
 pillow
+python-dotenv
+yt-dlp
 

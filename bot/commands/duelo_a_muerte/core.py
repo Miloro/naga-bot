@@ -4,7 +4,7 @@ import asyncio
 import io
 import aiohttp
 
-from bot.commands.duelo_a_muerte.imagen_handler import *
+from .imagen_handler import *
 
 desafios = {}
 
