@@ -4,6 +4,7 @@ services:
   discord_bot:
     build: .
     container_name: discord_bot
+    restart: unless-stopped
     working_dir: /app/bot
     command: python main.py
     env_file:
