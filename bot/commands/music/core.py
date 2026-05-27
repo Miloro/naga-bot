@@ -1,8 +1,11 @@
+import os
 import discord
 from discord import app_commands
 import yt_dlp
 import asyncio
 from collections import deque
+import spotipy
+from spotipy.oauth2 import SpotifyClientCredentials
 
 
 YTDL_OPTIONS = {
@@ -29,8 +32,73 @@ async def _in_executor(func):
     return await loop.run_in_executor(None, func)
 
 
+def _get_spotify_client():
+    client_id = os.getenv('SPOTIFY_CLIENT_ID')
+    client_secret = os.getenv('SPOTIFY_CLIENT_SECRET')
+    if not client_id or not client_secret:
+        return None
+    return spotipy.Spotify(auth_manager=SpotifyClientCredentials(
+        client_id=client_id,
+        client_secret=client_secret
+    ))
+
+
+async def spotify_to_songs(url: str) -> list[Song]:
+    def _extract():
+        sp = _get_spotify_client()
+        if not sp:
+            return []
+
+        songs = []
+
+        if '/track/' in url:
+            track_id = url.split('/track/')[1].split('?')[0]
+            track = sp.track(track_id)
+            artist = track['artists'][0]['name']
+            title = track['name']
+            songs.append(Song(
+                title=f"{artist} - {title}",
+                webpage_url=f"ytsearch1:{artist} - {title}"
+            ))
+
+        elif '/playlist/' in url:
+            playlist_id = url.split('/playlist/')[1].split('?')[0]
+            results = sp.playlist_tracks(playlist_id)
+            while results:
+                for item in results['items']:
+                    track = item.get('track')
+                    if not track:
+                        continue
+                    artist = track['artists'][0]['name']
+                    title = track['name']
+                    songs.append(Song(
+                        title=f"{artist} - {title}",
+                        webpage_url=f"ytsearch1:{artist} - {title}"
+                    ))
+                results = sp.next(results) if results.get('next') else None
+
+        elif '/album/' in url:
+            album_id = url.split('/album/')[1].split('?')[0]
+            results = sp.album(album_id)['tracks']
+            while results:
+                for track in results['items']:
+                    artist = track['artists'][0]['name']
+                    title = track['name']
+                    songs.append(Song(
+                        title=f"{artist} - {title}",
+                        webpage_url=f"ytsearch1:{artist} - {title}"
+                    ))
+                results = sp.next(results) if results.get('next') else None
+
+        return songs
+
+    return await _in_executor(_extract)
+
+
 async def extract_songs(query: str) -> list[Song]:
-    # Si no es una URL, busca en YouTube
+    if 'open.spotify.com' in query:
+        return await spotify_to_songs(query)
+
     is_url = query.startswith(('http://', 'https://'))
     search_query = query if is_url else f"ytsearch:{query}"
 
@@ -74,6 +142,9 @@ async def resolve_song(song: Song) -> bool:
 
     try:
         info = await _in_executor(_extract)
+        # ytsearch puede devolver una estructura con entries
+        if info and 'entries' in info:
+            info = info['entries'][0] if info['entries'] else None
         if info and 'url' in info:
             song.audio_url = info['url']
             song.title = info.get('title', song.title)
@@ -87,7 +158,6 @@ class PlayerControls(discord.ui.View):
     def __init__(self, player: 'MusicPlayer'):
         super().__init__(timeout=None)
         self.player = player
-        # Refleja el estado actual del loop en el estilo del botón
         for child in self.children:
             if isinstance(child, discord.ui.Button) and child.label == 'Bucle':
                 child.style = discord.ButtonStyle.success if player.loop_current else discord.ButtonStyle.secondary
@@ -138,7 +208,6 @@ class MusicPlayer:
         if self.stopped:
             return
 
-        # Si loop está activo, reencola el tema actual sin pasarlo al historial
         if self.loop_current and self.current:
             self.queue.appendleft(self.current)
         elif self.current:
@@ -214,6 +283,13 @@ async def play(interaction: discord.Interaction, url: str):
         await interaction.response.send_message("No estás en ningún canal de voz.", ephemeral=True)
         return
 
+    if 'open.spotify.com' in url and not (os.getenv('SPOTIFY_CLIENT_ID') and os.getenv('SPOTIFY_CLIENT_SECRET')):
+        await interaction.response.send_message(
+            "Faltan las credenciales de Spotify. Configurá `SPOTIFY_CLIENT_ID` y `SPOTIFY_CLIENT_SECRET` en el `.env`.",
+            ephemeral=True
+        )
+        return
+
     await interaction.response.defer()
 
     songs = await extract_songs(url)
@@ -240,7 +316,7 @@ async def play(interaction: discord.Interaction, url: str):
         player.message = msg
         await player.play_next()
     else:
-        label = f"**{songs[0].title}**" if len(songs) == 1 else f"**{len(songs)} temas** de la lista"
+        label = f"**{songs[0].title}**" if len(songs) == 1 else f"**{len(songs)} temas**"
         await interaction.followup.send(f"Agregado a la cola: {label}")
         await player._update_message()
 
@@ -268,7 +344,7 @@ async def stop(interaction: discord.Interaction):
 def setup(bot):
     bot.tree.add_command(app_commands.Command(
         name="play",
-        description="Reproduce audio de YouTube. Acepta URL o texto de búsqueda.",
+        description="Reproduce audio de YouTube o Spotify. Acepta URL o texto de búsqueda.",
         callback=play
     ))
     bot.tree.add_command(app_commands.Command(

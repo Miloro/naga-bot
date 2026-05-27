@@ -5,4 +5,5 @@ google-auth
 pillow
 python-dotenv
 yt-dlp
+spotipy
 
